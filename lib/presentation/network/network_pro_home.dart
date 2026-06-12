@@ -1,4 +1,5 @@
 // lib/presentation/network/network_pro_home.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -17,13 +18,17 @@ class NetworkProHome extends StatefulWidget {
   State<NetworkProHome> createState() => _NetworkProHomeState();
 }
 
-class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStateMixin {
+class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late AnimationController _fabAnimationController;
   bool _loadingPosts = true;
   bool _isRefreshing = false;
   String _feedType = 'smart';
   int _selectedNavIndex = 0;
   final Map<String, AnimationController> _likeAnimations = {};
+  StreamSubscription? _realtimeSubscription;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -35,7 +40,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
-      // ✅ CORRIGÉ: Initialiser le realtime listening du FeedProvider
+      // Initialiser le realtime listening du FeedProvider
       final feedProvider = Provider.of<FeedProvider>(context, listen: false);
       feedProvider.initRealtime();
     });
@@ -49,16 +54,18 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     for (var controller in _likeAnimations.values) {
       controller.dispose();
     }
+    _realtimeSubscription?.cancel();
     super.dispose();
   }
 
-  /// ✅ CORRIGÉ: Listener realtime Supabase pour les changements de publications
+  /// Configuration du realtime Supabase pour les changements de publications
   void _setupRealtimeSubscriptions() {
     try {
       final supabase = Supabase.instance.client;
       final feedProvider = Provider.of<FeedProvider>(context, listen: false);
 
-      supabase.channel('public:posts')
+      _realtimeSubscription = supabase
+          .channel('public:posts')
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
             schema: 'public',
@@ -66,7 +73,6 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
             callback: (payload) async {
               debugPrint('📬 [REALTIME] Nouvelle publication détectée en BDD!');
               if (mounted) {
-                // Recharger le feed pour intégrer la nouvelle publication
                 await feedProvider.loadFeed(feedType: _feedType);
                 setState(() {});
               }
@@ -99,8 +105,8 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
           .subscribe((status, err) {
             if (err != null) {
               debugPrint('❌ Erreur Realtime: $err');
-            } else if (status == RealtimeSubscriptionStatus.subscribed) {
-              debugPrint('✅ Realtime connecté au feed');
+            } else {
+              debugPrint('✅ Realtime connecté au feed - status: $status');
             }
           });
     } catch (e) {
@@ -111,7 +117,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
   Future<void> _loadAllData() async {
     final feedProvider = Provider.of<FeedProvider>(context, listen: false);
     await feedProvider.loadFeed(feedType: _feedType);
-    setState(() => _loadingPosts = false);
+    if (mounted) {
+      setState(() => _loadingPosts = false);
+    }
   }
 
   Future<void> _loadPosts() async {
@@ -146,21 +154,34 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Pour AutomaticKeepAliveClientMixin
+    
     final feedProvider = Provider.of<FeedProvider>(context);
     final posts = feedProvider.posts;
     final isLoading = feedProvider.isLoading;
     final auth = Provider.of<AuthController>(context);
 
+    // ✅ CORRIGÉ: Vérification d'authentification plus robuste
     if (auth.currentUser == null) {
       return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Connectez-vous pour accéder au Réseau Pro'),
+              const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
               const SizedBox(height: 16),
+              const Text(
+                'Connectez-vous pour accéder au Réseau Pro',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => context.push('/login'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD4AF37),
+                  foregroundColor: const Color(0xFF0B1B3D),
+                ),
                 child: const Text('Se connecter'),
               ),
             ],
@@ -174,6 +195,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
       appBar: _buildAppBar(),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
+        color: const Color(0xFFD4AF37),
         child: CustomScrollView(
           slivers: [
             // Section Filtres
@@ -181,13 +203,15 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
               child: _buildFilterChips(),
             ),
             // Section Posts
-            if (isLoading)
-              SliverFillRemaining(
+            if (isLoading && posts.isEmpty)
+              const SliverFillRemaining(
                 child: Center(
-                  child: CircularProgressIndicator(),
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)),
+                  ),
                 ),
               )
-            else if (posts.isEmpty)
+            else if (posts.isEmpty && !isLoading)
               SliverFillRemaining(
                 child: _buildEmptyState(),
               )
@@ -198,6 +222,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                   childCount: posts.length,
                 ),
               ),
+            const SliverToBoxAdapter(child: SizedBox(height: 80)),
           ],
         ),
       ),
@@ -210,11 +235,23 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      title: const Text('Réseau Pro', style: TextStyle(color: Color(0xFF0B1B3D), fontWeight: FontWeight.bold)),
+      title: const Text(
+        'Réseau Pro',
+        style: TextStyle(color: Color(0xFF0B1B3D), fontWeight: FontWeight.bold),
+      ),
       actions: [
-        IconButton(icon: const Icon(Icons.search, color: Color(0xFF0B1B3D)), onPressed: _goToSearch),
-        IconButton(icon: const Icon(Icons.notifications_none, color: Color(0xFF0B1B3D)), onPressed: _goToNotifications),
-        IconButton(icon: const Icon(Icons.mail_outline, color: Color(0xFF0B1B3D)), onPressed: _goToMessages),
+        IconButton(
+          icon: const Icon(Icons.search, color: Color(0xFF0B1B3D)),
+          onPressed: _goToSearch,
+        ),
+        IconButton(
+          icon: const Icon(Icons.notifications_none, color: Color(0xFF0B1B3D)),
+          onPressed: _goToNotifications,
+        ),
+        IconButton(
+          icon: const Icon(Icons.mail_outline, color: Color(0xFF0B1B3D)),
+          onPressed: _goToMessages,
+        ),
       ],
     );
   }
@@ -225,40 +262,65 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
       {'icon': Icons.trending_up, 'label': 'Populaires', 'value': 'popular'},
     ];
     
-    return SizedBox(
-      height: 32,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: filters.length,
-        itemBuilder: (context, index) {
-          final filter = filters[index];
-          final isSelected = _feedType == filter['value'];
-          return Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              selected: isSelected,
-              label: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(filter['icon'] as IconData, size: 14, color: isSelected ? const Color(0xFFD4AF37) : Colors.white70),
-                  const SizedBox(width: 4),
-                  Text(filter['label'] as String, style: TextStyle(fontSize: 11, color: isSelected ? const Color(0xFFD4AF37) : Colors.white70)),
-                ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: SizedBox(
+        height: 36,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: filters.length,
+          itemBuilder: (context, index) {
+            final filter = filters[index];
+            final isSelected = _feedType == filter['value'];
+            return Container(
+              margin: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                selected: isSelected,
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      filter['icon'] as IconData,
+                      size: 14,
+                      color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      filter['label'] as String,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                onSelected: (selected) {
+                  setState(() => _feedType = filter['value'] as String);
+                  _loadPosts();
+                },
+                backgroundColor: Colors.white,
+                selectedColor: const Color(0xFFD4AF37).withOpacity(0.1),
+                side: BorderSide(
+                  color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[300]!,
+                ),
               ),
-              onSelected: (selected) {
-                setState(() => _feedType = filter['value'] as String);
-                _loadPosts();
-              },
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildPostCard(NetworkPost post) {
+    // ✅ CORRIGÉ: Utiliser les bonnes propriétés du modèle
+    final imageUrl = post.imageUrl;  // Au lieu de mediaUrl
+    final sharesCount = post.sharesCount ?? 0;
+    final isLiked = post.isLikedByCurrentUser ?? false;
+    
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -267,61 +329,121 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
             // Header Post
             Row(
               children: [
-                CircleAvatar(backgroundImage: NetworkImage(post.authorAvatar ?? ''), radius: 20),
+                CircleAvatar(
+                  backgroundImage: post.authorAvatar != null && post.authorAvatar!.isNotEmpty
+                      ? NetworkImage(post.authorAvatar!)
+                      : null,
+                  radius: 20,
+                  child: post.authorAvatar == null || post.authorAvatar!.isEmpty
+                      ? const Icon(Icons.person, size: 20)
+                      : null,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(post.authorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(post.authorTitle ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text(
+                        post.authorName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      if (post.authorTitle != null && post.authorTitle!.isNotEmpty)
+                        Text(
+                          post.authorTitle!,
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
                     ],
                   ),
                 ),
-                PopupMenuButton(itemBuilder: (context) => []),
+                PopupMenuButton(
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(child: Text('Signaler')),
+                    const PopupMenuItem(child: Text('Ne plus voir')),
+                  ],
+                  icon: const Icon(Icons.more_horiz, size: 18),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             // Contenu
-            if (post.content != null) Text(post.content!),
-            if (post.mediaUrl != null) ...[
+            if (post.content != null && post.content!.isNotEmpty)
+              Text(
+                post.content!,
+                style: const TextStyle(fontSize: 13),
+              ),
+            if (imageUrl != null && imageUrl.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Image.network(post.mediaUrl!, height: 200, fit: BoxFit.cover),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  imageUrl,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                  ),
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             // Engagement Stats
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${post.likesCount} J\'aime', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text('${post.commentsCount} Commentaires', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text('${post.sharesCount ?? 0} Partages', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  '${post.likesCount} ${post.likesCount == 1 ? 'J\'aime' : 'J\'aimes'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  '${post.commentsCount} ${post.commentsCount == 1 ? 'Commentaire' : 'Commentaires'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  '$sharesCount ${sharesCount == 1 ? 'Partage' : 'Partages'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ],
             ),
-            const Divider(),
+            const Divider(height: 16),
             // Boutons d'actions
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                GestureDetector(
+                _buildActionButton(
+                  icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                  color: isLiked ? Colors.red : Colors.grey[600],
                   onTap: () {
+                    HapticFeedback.lightImpact();
                     Provider.of<FeedProvider>(context, listen: false).toggleLike(post.id);
                   },
-                  child: Icon(post.isLikedByCurrentUser ? Icons.favorite : Icons.favorite_border, color: post.isLikedByCurrentUser ? Colors.red : Colors.grey[600]),
                 ),
-                GestureDetector(
-                  onTap: () {
-                    _showCommentDialog(post);
-                  },
-                  child: Icon(Icons.comment_outlined, color: Colors.grey[600]),
+                _buildActionButton(
+                  icon: Icons.comment_outlined,
+                  color: Colors.grey[600],
+                  onTap: () => _showCommentDialog(post),
                 ),
-                GestureDetector(
+                _buildActionButton(
+                  icon: Icons.bookmark_border,
+                  color: Colors.grey[600],
                   onTap: () {},
-                  child: Icon(Icons.bookmark_border, size: 18, color: Colors.grey[600]),
                 ),
-                GestureDetector(
+                _buildActionButton(
+                  icon: Icons.share_outlined,
+                  color: Colors.grey[600],
                   onTap: () {},
-                  child: Icon(Icons.share_outlined, size: 18, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -331,9 +453,23 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     );
   }
 
-  void _showCommentDialog(NetworkPost post) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color? color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Icon(icon, size: 18, color: color),
+      ),
+    );
+  }
+
+  Future<void> _showCommentDialog(NetworkPost post) async {
     final controller = TextEditingController();
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Ajouter un commentaire'),
@@ -348,22 +484,22 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                final feedProvider = Provider.of<FeedProvider>(context, listen: false);
-                await feedProvider.addComment(post.id, controller.text.trim());
-                if (mounted) Navigator.pop(context);
-              }
-            },
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD4AF37)),
             child: const Text('Publier'),
           ),
         ],
       ),
     );
+    
+    if (result == true && controller.text.trim().isNotEmpty && mounted) {
+      final feedProvider = Provider.of<FeedProvider>(context, listen: false);
+      await feedProvider.addComment(post.id, controller.text.trim());
+    }
   }
 
   Widget _buildFAB() {
@@ -382,30 +518,50 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
   }
 
   Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _selectedNavIndex,
-      onTap: (index) {
-        setState(() => _selectedNavIndex = index);
-        switch (index) {
-          case 0:
-            break;
-          case 1:
-            _goToSearch();
-            break;
-          case 2:
-            _goToConnexions();
-            break;
-          case 3:
-            _goToProfile();
-            break;
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-        BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Recherche'),
-        BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Connexions'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedNavIndex,
+        onTap: (index) {
+          setState(() => _selectedNavIndex = index);
+          HapticFeedback.lightImpact();
+          switch (index) {
+            case 0:
+              break;
+            case 1:
+              _goToSearch();
+              break;
+            case 2:
+              _goToConnexions();
+              break;
+            case 3:
+              _goToProfile();
+              break;
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFFD4AF37),
+        unselectedItemColor: Colors.grey,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(fontSize: 10),
+        unselectedLabelStyle: const TextStyle(fontSize: 10),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home, size: 20), label: 'Accueil'),
+          BottomNavigationBarItem(icon: Icon(Icons.search, size: 20), label: 'Recherche'),
+          BottomNavigationBarItem(icon: Icon(Icons.people, size: 20), label: 'Connexions'),
+          BottomNavigationBarItem(icon: Icon(Icons.person, size: 20), label: 'Profil'),
+        ],
+      ),
     );
   }
 
@@ -418,13 +574,37 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.post_add, size: 48, color: Colors.grey),
             ),
             const SizedBox(height: 16),
-            const Text('Aucune publication', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF4B5563))),
+            const Text(
+              'Aucune publication',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF4B5563)),
+            ),
             const SizedBox(height: 8),
-            const Text('Soyez le premier à publier!', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text(
+              'Soyez le premier à publier!',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const CreatePostDialog(),
+                ).then((_) => _loadPosts());
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Créer une publication'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD4AF37),
+                foregroundColor: const Color(0xFF0B1B3D),
+              ),
+            ),
           ],
         ),
       ),

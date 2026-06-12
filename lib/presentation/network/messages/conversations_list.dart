@@ -1,13 +1,11 @@
 // lib/presentation/network/messages/conversations_list.dart
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../services/network_service.dart' as service;  // ← ALIAS
-import '../../../providers/feed_provider.dart';
-import '../../../models/network_message.dart';
+import '../../../services/network_service.dart';
 import '../../../auth/auth_controller.dart';
 import 'chat_screen.dart';
 
@@ -19,13 +17,14 @@ class ConversationsList extends StatefulWidget {
 }
 
 class _ConversationsListState extends State<ConversationsList> {
-  List<service.Conversation> _conversations = [];  // ← Utilise service.Conversation
+  List<Conversation> _conversations = [];
   bool _isLoading = true;
-  final NetworkService _networkService = NetworkService(Supabase.instance.client);
+  late NetworkService _networkService;
 
   @override
   void initState() {
     super.initState();
+    _networkService = NetworkService(Supabase.instance.client);
     _loadConversations();
   }
 
@@ -66,13 +65,13 @@ class _ConversationsListState extends State<ConversationsList> {
     );
   }
 
-  Widget _buildConversationTile(service.Conversation conversation) {  // ← Utilise service.Conversation
+  Widget _buildConversationTile(Conversation conversation) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: conversation.otherUserAvatar != null
+        backgroundImage: conversation.otherUserAvatar != null && conversation.otherUserAvatar!.isNotEmpty
             ? NetworkImage(conversation.otherUserAvatar!)
             : null,
-        child: conversation.otherUserAvatar == null
+        child: conversation.otherUserAvatar == null || conversation.otherUserAvatar!.isEmpty
             ? const Icon(Icons.person, size: 24)
             : null,
       ),

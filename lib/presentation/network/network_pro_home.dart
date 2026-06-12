@@ -25,7 +25,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
   String _feedType = 'smart';
   int _selectedNavIndex = 0;
   final Map<String, AnimationController> _likeAnimations = {};
-  StreamSubscription? _realtimeSubscription;
+  RealtimeChannel? _realtimeChannel;  // ✅ CORRIGÉ: RealtimeChannel au lieu de StreamSubscription
 
   @override
   bool get wantKeepAlive => true;
@@ -40,7 +40,6 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
-      // Initialiser le realtime listening du FeedProvider
       final feedProvider = Provider.of<FeedProvider>(context, listen: false);
       feedProvider.initRealtime();
     });
@@ -54,17 +53,16 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     for (var controller in _likeAnimations.values) {
       controller.dispose();
     }
-    _realtimeSubscription?.cancel();
+    _realtimeChannel?.unsubscribe();  // ✅ CORRIGÉ: unsubscribe au lieu de cancel
     super.dispose();
   }
 
-  /// Configuration du realtime Supabase pour les changements de publications
   void _setupRealtimeSubscriptions() {
     try {
       final supabase = Supabase.instance.client;
       final feedProvider = Provider.of<FeedProvider>(context, listen: false);
 
-      _realtimeSubscription = supabase
+      _realtimeChannel = supabase
           .channel('public:posts')
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
@@ -154,14 +152,13 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Pour AutomaticKeepAliveClientMixin
+    super.build(context);
     
     final feedProvider = Provider.of<FeedProvider>(context);
     final posts = feedProvider.posts;
     final isLoading = feedProvider.isLoading;
     final auth = Provider.of<AuthController>(context);
 
-    // ✅ CORRIGÉ: Vérification d'authentification plus robuste
     if (auth.currentUser == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -198,11 +195,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
         color: const Color(0xFFD4AF37),
         child: CustomScrollView(
           slivers: [
-            // Section Filtres
-            SliverToBoxAdapter(
-              child: _buildFilterChips(),
-            ),
-            // Section Posts
+            SliverToBoxAdapter(child: _buildFilterChips()),
             if (isLoading && posts.isEmpty)
               const SliverFillRemaining(
                 child: Center(
@@ -212,9 +205,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                 ),
               )
             else if (posts.isEmpty && !isLoading)
-              SliverFillRemaining(
-                child: _buildEmptyState(),
-              )
+              SliverFillRemaining(child: _buildEmptyState())
             else
               SliverList(
                 delegate: SliverChildBuilderDelegate(
@@ -240,18 +231,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
         style: TextStyle(color: Color(0xFF0B1B3D), fontWeight: FontWeight.bold),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.search, color: Color(0xFF0B1B3D)),
-          onPressed: _goToSearch,
-        ),
-        IconButton(
-          icon: const Icon(Icons.notifications_none, color: Color(0xFF0B1B3D)),
-          onPressed: _goToNotifications,
-        ),
-        IconButton(
-          icon: const Icon(Icons.mail_outline, color: Color(0xFF0B1B3D)),
-          onPressed: _goToMessages,
-        ),
+        IconButton(icon: const Icon(Icons.search, color: Color(0xFF0B1B3D)), onPressed: _goToSearch),
+        IconButton(icon: const Icon(Icons.notifications_none, color: Color(0xFF0B1B3D)), onPressed: _goToNotifications),
+        IconButton(icon: const Icon(Icons.mail_outline, color: Color(0xFF0B1B3D)), onPressed: _goToMessages),
       ],
     );
   }
@@ -279,19 +261,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      filter['icon'] as IconData,
-                      size: 14,
-                      color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600],
-                    ),
+                    Icon(filter['icon'] as IconData, size: 14, color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600]),
                     const SizedBox(width: 4),
-                    Text(
-                      filter['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600],
-                      ),
-                    ),
+                    Text(filter['label'] as String, style: TextStyle(fontSize: 11, color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[600])),
                   ],
                 ),
                 onSelected: (selected) {
@@ -300,9 +272,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                 },
                 backgroundColor: Colors.white,
                 selectedColor: const Color(0xFFD4AF37).withOpacity(0.1),
-                side: BorderSide(
-                  color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[300]!,
-                ),
+                side: BorderSide(color: isSelected ? const Color(0xFFD4AF37) : Colors.grey[300]!),
               ),
             );
           },
@@ -313,9 +283,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
 
   Widget _buildPostCard(NetworkPost post) {
     // ✅ CORRIGÉ: Utiliser les bonnes propriétés du modèle
-    final imageUrl = post.imageUrl;  // Au lieu de mediaUrl
+    final imageUrl = post.imageUrl;  // Utilise imageUrl
     final sharesCount = post.sharesCount ?? 0;
-    final isLiked = post.isLikedByCurrentUser ?? false;
+    final isLiked = post.isLiked ?? false;  // ✅ CORRIGÉ: isLiked au lieu de isLikedByCurrentUser
     
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -343,15 +313,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        post.authorName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
+                      Text(post.authorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       if (post.authorTitle != null && post.authorTitle!.isNotEmpty)
-                        Text(
-                          post.authorTitle!,
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
+                        Text(post.authorTitle!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
                   ),
                 ),
@@ -367,10 +331,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
             const SizedBox(height: 12),
             // Contenu
             if (post.content != null && post.content!.isNotEmpty)
-              Text(
-                post.content!,
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text(post.content!, style: const TextStyle(fontSize: 13)),
             if (imageUrl != null && imageUrl.isNotEmpty) ...[
               const SizedBox(height: 8),
               ClipRRect(
@@ -385,9 +346,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                     return Container(
                       height: 200,
                       color: Colors.grey[200],
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                      child: const Center(child: CircularProgressIndicator()),
                     );
                   },
                   errorBuilder: (context, error, stackTrace) => Container(
@@ -403,18 +362,9 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${post.likesCount} ${post.likesCount == 1 ? 'J\'aime' : 'J\'aimes'}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                Text(
-                  '${post.commentsCount} ${post.commentsCount == 1 ? 'Commentaire' : 'Commentaires'}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                Text(
-                  '$sharesCount ${sharesCount == 1 ? 'Partage' : 'Partages'}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
+                Text('${post.likesCount} ${post.likesCount == 1 ? 'J\'aime' : 'J\'aimes'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('${post.commentsCount} ${post.commentsCount == 1 ? 'Commentaire' : 'Commentaires'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('$sharesCount ${sharesCount == 1 ? 'Partage' : 'Partages'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
             const Divider(height: 16),
@@ -483,10 +433,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
           maxLines: 3,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFFD4AF37)),
@@ -521,13 +468,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, -2))],
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedNavIndex,
@@ -535,17 +476,10 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
           setState(() => _selectedNavIndex = index);
           HapticFeedback.lightImpact();
           switch (index) {
-            case 0:
-              break;
-            case 1:
-              _goToSearch();
-              break;
-            case 2:
-              _goToConnexions();
-              break;
-            case 3:
-              _goToProfile();
-              break;
+            case 0: break;
+            case 1: _goToSearch(); break;
+            case 2: _goToConnexions(); break;
+            case 3: _goToProfile(); break;
           }
         },
         type: BottomNavigationBarType.fixed,
@@ -574,22 +508,13 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
               child: const Icon(Icons.post_add, size: 48, color: Colors.grey),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Aucune publication',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF4B5563)),
-            ),
+            const Text('Aucune publication', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF4B5563))),
             const SizedBox(height: 8),
-            const Text(
-              'Soyez le premier à publier!',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
+            const Text('Soyez le premier à publier!', style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {

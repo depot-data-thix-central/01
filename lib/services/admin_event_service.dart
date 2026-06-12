@@ -16,7 +16,6 @@ class AdminEventService {
   static const String eventsStatusView = 'thix_events_status';
   static const String coverBucketDefault = 'thix-events';
 
-  // ✅ AJOUTÉ: Limite maximale par défaut
   static const int defaultLimit = 200;
   static const int maxLimit = 500;
 
@@ -34,10 +33,8 @@ class AdminEventService {
     try {
       debugPrint('📅 AdminEventService.listEvents: chargement des événements...');
       
-      // Construire la requête
       var query = _client.from(eventsStatusView).select('*');
       
-      // ✅ AJOUTÉ: Filtres optionnels
       if (status != null && status.isNotEmpty) {
         query = query.eq('status', status);
       }
@@ -48,8 +45,7 @@ class AdminEventService {
         query = query.eq('is_featured', isFeatured);
       }
       
-      // Tri et limite
-      final orderColumn = ascending ? 'starts_at' : 'starts_at';
+      final orderColumn = 'starts_at';
       final res = await query
           .order(orderColumn, ascending: ascending)
           .limit(limit.clamp(1, maxLimit));
@@ -69,18 +65,18 @@ class AdminEventService {
   // COMPTER LES INSCRIPTIONS
   // ============================================================
 
+  // ✅ CORRIGÉ: sans utiliser 'count'
   Future<int> countRegistrations({required String eventId}) async {
     try {
       final res = await _client
           .from(registrationsTable)
-          .select('id', count: CountOption.exact)
+          .select('id')
           .eq('event_id', eventId);
       
-      // ✅ CORRIGÉ: Utiliser count si disponible, sinon compter la liste
-      if (res.count != null) {
-        return res.count ?? 0;
+      // Compter manuellement le nombre d'éléments
+      if (res is List) {
+        return res.length;
       }
-      if (res is List) return res.length;
       return 0;
     } catch (e) {
       debugPrint('❌ AdminEventService.countRegistrations failed err=$e');
@@ -88,7 +84,46 @@ class AdminEventService {
     }
   }
 
-  // ✅ NOUVELLE MÉTHODE: Récupérer un événement par ID
+  // ✅ NOUVELLE MÉTHODE: Récupérer toutes les inscriptions d'un événement
+  Future<List<Map<String, dynamic>>> getRegistrations({required String eventId}) async {
+    try {
+      final res = await _client
+          .from(registrationsTable)
+          .select('*')
+          .eq('event_id', eventId)
+          .order('created_at', ascending: false);
+      
+      if (res is List) {
+        return res.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ AdminEventService.getRegistrations failed err=$e');
+      return [];
+    }
+  }
+
+  // ✅ NOUVELLE MÉTHODE: Compter le nombre total d'inscriptions
+  Future<int> countAllRegistrations() async {
+    try {
+      final res = await _client
+          .from(registrationsTable)
+          .select('id');
+      
+      if (res is List) {
+        return res.length;
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('❌ AdminEventService.countAllRegistrations failed err=$e');
+      return 0;
+    }
+  }
+
+  // ============================================================
+  // RÉCUPÉRATION D'ÉVÉNEMENTS
+  // ============================================================
+
   Future<Map<String, dynamic>?> getEventById(String eventId) async {
     try {
       final res = await _client
@@ -105,7 +140,6 @@ class AdminEventService {
     }
   }
 
-  // ✅ NOUVELLE MÉTHODE: Récupérer les événements à venir
   Future<List<Map<String, dynamic>>> getUpcomingEvents({int limit = defaultLimit}) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
@@ -125,7 +159,6 @@ class AdminEventService {
     }
   }
 
-  // ✅ NOUVELLE MÉTHODE: Récupérer les événements passés
   Future<List<Map<String, dynamic>>> getPastEvents({int limit = defaultLimit}) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
@@ -175,7 +208,6 @@ class AdminEventService {
     List<Map<String, dynamic>>? agenda,
     String? actorRole,
   }) async {
-    // ✅ AJOUTÉ: Validation des données
     if (title.trim().isEmpty) {
       throw Exception('Le titre de l\'événement est requis');
     }
@@ -250,7 +282,7 @@ class AdminEventService {
   }
 
   // ============================================================
-  // MISE À JOUR DE L'IMAGE DE COUVERTURE
+  // MISE À JOUR DE L'IMAGE
   // ============================================================
 
   Future<void> updateCoverImage({
@@ -289,7 +321,7 @@ class AdminEventService {
   }
 
   // ============================================================
-  // SUPPRESSION D'ÉVÉNEMENT
+  // SUPPRESSION
   // ============================================================
 
   Future<void> deleteEvent({required String id, String? actorRole}) async {
@@ -318,10 +350,9 @@ class AdminEventService {
   }
 
   // ============================================================
-  // MÉTHODES UTILITAIRES SUPPLEMENTAIRES
+  // MÉTHODES UTILITAIRES
   // ============================================================
 
-  // ✅ NOUVELLE MÉTHODE: Vérifier si un événement existe
   Future<bool> eventExists(String eventId) async {
     try {
       final res = await _client
@@ -336,14 +367,12 @@ class AdminEventService {
     }
   }
 
-  // ✅ NOUVELLE MÉTHODE: Dupliquer un événement
   Future<String> duplicateEvent(String eventId, {String? actorRole}) async {
     final original = await getEventById(eventId);
     if (original == null) {
       throw Exception('Événement original introuvable');
     }
     
-    // Créer une copie avec un titre modifié
     final newTitle = '${original['title']} (Copie)';
     final startsAt = DateTime.parse(original['starts_at']);
     
@@ -352,40 +381,43 @@ class AdminEventService {
       startsAt: startsAt,
       place: original['place'],
       virtualLink: original['virtual_link'],
-      status: 'draft', // Mettre en brouillon par défaut
+      status: 'draft',
       category: original['category'],
       description: original['description'],
       actorRole: actorRole,
     );
   }
 
-  // ✅ NOUVELLE MÉTHODE: Publier un événement
   Future<void> publishEvent(String eventId, {String? actorRole}) async {
-    await upsertEvent(
-      id: eventId,
-      title: '', // Sera ignoré car id est fourni
-      startsAt: DateTime.now(),
-      place: '', // Sera ignoré
-      status: 'published',
+    await _client.from(eventsTable).update({
+      'status': 'published',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', eventId);
+    
+    await _audit.log(
+      action: 'event_publish',
+      entityType: eventsTable,
+      entityId: eventId,
       actorRole: actorRole,
     );
     debugPrint('📢 AdminEventService.publishEvent: Événement $eventId publié');
   }
 
-  // ✅ NOUVELLE MÉTHODE: Dépublier un événement
   Future<void> unpublishEvent(String eventId, {String? actorRole}) async {
-    await upsertEvent(
-      id: eventId,
-      title: '', // Sera ignoré
-      startsAt: DateTime.now(),
-      place: '', // Sera ignoré
-      status: 'draft',
+    await _client.from(eventsTable).update({
+      'status': 'draft',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', eventId);
+    
+    await _audit.log(
+      action: 'event_unpublish',
+      entityType: eventsTable,
+      entityId: eventId,
       actorRole: actorRole,
     );
     debugPrint('📢 AdminEventService.unpublishEvent: Événement $eventId dépublié');
   }
 
-  // ✅ NOUVELLE MÉTHODE: Statistiques rapides
   Future<Map<String, int>> getStats() async {
     try {
       final events = await listEvents(limit: maxLimit);

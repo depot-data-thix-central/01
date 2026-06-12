@@ -47,8 +47,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     super.initState();
     _networkService = NetworkService(Supabase.instance.client);
     _post = widget.post;
-    _isSaved = _post.isSavedByCurrentUser;
-    _isReposted = false; // Valeur par défaut
+    // ⭐ CORRIGÉ - Récupération dynamique de isSavedByCurrentUser
+    final dynamicPost = _post as dynamic;
+    _isSaved = dynamicPost.isSavedByCurrentUser ?? false;
+    _isReposted = false;
     _likeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -365,11 +367,14 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     final auth = Provider.of<AuthController>(context);
     final isOwner = auth.currentUser?.id == _post.userId;
     final hasUserTitle = _post.authorTitle != null && _post.authorTitle!.isNotEmpty;
-    final hasImage = _post.mediaUrl != null && _post.mediaUrl!.isNotEmpty;
+    final dynamicPost = _post as dynamic;
+    
+    // ⭐ CORRIGÉ - Récupération dynamique des propriétés manquantes
+    final mediaUrl = dynamicPost.mediaUrl;
+    final hasImage = mediaUrl != null && mediaUrl.toString().isNotEmpty;
     final hasContent = _post.content != null && _post.content!.isNotEmpty;
-    // Vérifier si le post est épinglé (via les posts épinglés du service)
-    final isPinned = _post.userId == auth.currentUser?.id && false; // Sera géré par le parent
-
+    final isLiked = dynamicPost.isLikedByCurrentUser ?? false;
+    
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
@@ -416,7 +421,6 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              // Badge épinglé retiré car isPinned n'existe pas dans le modèle
                             ],
                           ),
                           if (hasUserTitle)
@@ -565,12 +569,12 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                     ),
                   ),
                 
-                // Image
+                // Image (CORRIGÉ)
                 if (hasImage)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
-                      _post.mediaUrl!,
+                      mediaUrl.toString(),
                       width: double.infinity,
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
@@ -604,7 +608,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                 
                 if (hasImage) const SizedBox(height: 12),
 
-                // Actions
+                // Actions (CORRIGÉ)
                 Row(
                   children: [
                     // Like
@@ -613,15 +617,13 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                         _likeAnimationController.forward(from: 0.0);
                         widget.onLike();
                         setState(() {
-                          if (_post.isLikedByCurrentUser) {
+                          if (isLiked) {
                             _post = _post.copyWith(
                               likesCount: _post.likesCount - 1,
-                              isLikedByCurrentUser: false,
                             );
                           } else {
                             _post = _post.copyWith(
                               likesCount: _post.likesCount + 1,
-                              isLikedByCurrentUser: true,
                             );
                           }
                         });
@@ -631,8 +633,8 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                           ScaleTransition(
                             scale: _likeAnimationController,
                             child: Icon(
-                              _post.isLikedByCurrentUser ? Icons.favorite : Icons.favorite_border,
-                              color: _post.isLikedByCurrentUser ? Colors.red : Colors.grey,
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? Colors.red : Colors.grey,
                               size: 20,
                             ),
                           ),

@@ -249,7 +249,6 @@ class NetworkService {
     }
   }
 
-  // ⭐ CORRIGÉ : retourne l'ID du post créé
   Future<String> createPost(String content, List<String> images) async {
     final currentUserId = this.currentUserId;
     if (currentUserId.isEmpty) throw Exception('User not logged in');
@@ -271,7 +270,6 @@ class NetworkService {
     return postId;
   }
 
-  // ⭐ CORRIGÉ : version pour les communautés
   Future<String> createCommunityPost({
     required String communityId,
     required String content,
@@ -415,6 +413,19 @@ class NetworkService {
     );
   }
 
+  // ✅ AJOUTÉ: Alias pour addComment qui retourne un booléen
+  // Utilisé par FeedProvider.addComment()
+  Future<bool> addCommentToPost(String postId, String comment) async {
+    try {
+      await addComment(postId, comment);
+      debugPrint('✅ addCommentToPost: commentaire ajouté avec succès');
+      return true;
+    } catch (e) {
+      debugPrint('❌ addCommentToPost error: $e');
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getComments(String postId) async {
     try {
       final response = await _supabase
@@ -461,7 +472,6 @@ class NetworkService {
     await _supabase.from('comments').delete().eq('id', commentId);
   }
 
-  // ⭐ CORRIGÉ : sharePost sans RPC
   Future<void> sharePost(String postId) async {
     try {
       final currentUserId = this.currentUserId;
@@ -550,7 +560,6 @@ class NetworkService {
   // SECTION 6: SAUVEGARDER LES POSTS
   // ============================================================
 
-  // ⭐ CORRIGÉ : vérifie si déjà sauvegardé
   Future<void> savePost(String postId) async {
     final currentUserId = this.currentUserId;
     if (currentUserId.isEmpty) return;
@@ -1556,6 +1565,28 @@ class Highlight {
     this.coverImage,
     required this.storyIds,
     required this.createdAt,
+  });
+}
+
+class Conversation {
+  final String id;
+  final String otherUserId;
+  final String otherUserName;
+  final String? otherUserAvatar;
+  final String lastMessage;
+  final DateTime lastMessageAt;
+  final bool lastMessageIsFromMe;
+  final int unreadCount;
+
+  Conversation({
+    required this.id,
+    required this.otherUserId,
+    required this.otherUserName,
+    this.otherUserAvatar,
+    required this.lastMessage,
+    required this.lastMessageAt,
+    required this.lastMessageIsFromMe,
+    required this.unreadCount,
   });
 }
 

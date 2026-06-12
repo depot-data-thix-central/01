@@ -24,47 +24,59 @@ class EventService {
     int limit = 50,
   }) async {
     try {
-      final response = await _supabase.from('events').select('*');
+      debugPrint('📅 getEvents: chargement des événements...');
       
+      final response = await _supabase.from('events').select('*');
       List<dynamic> results = response as List;
       
+      debugPrint('📅 getEvents: ${results.length} événements bruts');
+      
+      // ✅ CORRIGÉ: Filtrer par statut 'upcoming' par défaut
+      // Ne montrer que les événements à venir + ceux en cours
+      final now = DateTime.now();
+      results = results.where((e) => 
+        e['status'] == 'upcoming' && 
+        DateTime.parse(e['start_date']).isAfter(now.subtract(const Duration(hours: 1)))
+      ).toList();
+      
+      debugPrint('📅 getEvents: ${results.length} événements à venir');
+      
       // Filtre par catégorie
-      if (category != null && category != 'all') {
+      if (category != null && category != 'all' && category != 'featured') {
         results = results.where((e) => e['category'] == category).toList();
+        debugPrint('📅 getEvents: ${results.length} après filtre catégorie $category');
       }
       
       // Filtre par date
-      final now = DateTime.now();
       if (dateFilter == 'today') {
         results = results.where((e) => 
           DateTime.parse(e['start_date']).day == now.day &&
           DateTime.parse(e['start_date']).month == now.month &&
           DateTime.parse(e['start_date']).year == now.year
         ).toList();
+        debugPrint('📅 getEvents: ${results.length} événements aujourd\'hui');
       } else if (dateFilter == 'week') {
         final weekLater = now.add(const Duration(days: 7));
         results = results.where((e) => 
           DateTime.parse(e['start_date']).isAfter(now) &&
           DateTime.parse(e['start_date']).isBefore(weekLater)
         ).toList();
+        debugPrint('📅 getEvents: ${results.length} événements cette semaine');
       } else if (dateFilter == 'month') {
         results = results.where((e) => 
           DateTime.parse(e['start_date']).month == now.month &&
           DateTime.parse(e['start_date']).year == now.year
         ).toList();
-      } else {
-        // Par défaut : événements à venir
-        results = results.where((e) => 
-          DateTime.parse(e['start_date']).isAfter(now) && e['status'] == 'upcoming'
-        ).toList();
+        debugPrint('📅 getEvents: ${results.length} événements ce mois');
       }
       
       // Filtre par ville
       if (city != null && city != 'all') {
         results = results.where((e) => e['city'] == city).toList();
+        debugPrint('📅 getEvents: ${results.length} événements à $city');
       }
       
-      // Tri par date
+      // Tri par date (du plus proche au plus lointain)
       results.sort((a, b) => DateTime.parse(a['start_date']).compareTo(DateTime.parse(b['start_date'])));
       
       // Limite
@@ -82,9 +94,69 @@ class EventService {
         }));
       }
       
+      debugPrint('✅ getEvents: ${events.length} événements retournés');
       return events;
     } catch (e) {
       debugPrint('❌ Error getEvents: $e');
+      return [];
+    }
+  }
+
+  // ✅ NOUVELLE MÉTHODE: Récupérer les événements populaires
+  Future<List<Event>> getPopularEvents({int limit = 10}) async {
+    try {
+      final response = await _supabase.from('events').select('*');
+      List<dynamic> results = response as List;
+      
+      final now = DateTime.now();
+      results = results.where((e) => 
+        e['status'] == 'upcoming' && 
+        DateTime.parse(e['start_date']).isAfter(now)
+      ).toList();
+      
+      // Trier par nombre de vues
+      results.sort((a, b) => (b['views_count'] ?? 0).compareTo(a['views_count'] ?? 0));
+      
+      results = results.take(limit).toList();
+      
+      final events = <Event>[];
+      for (var e in results) {
+        final isLiked = await _isEventLiked(e['id']);
+        events.add(Event.fromJson({
+          ...e,
+          'is_liked': isLiked,
+        }));
+      }
+      
+      return events;
+    } catch (e) {
+      debugPrint('❌ Error getPopularEvents: $e');
+      return [];
+    }
+  }
+
+  // ✅ NOUVELLE MÉTHODE: Récupérer les événements récents
+  Future<List<Event>> getRecentEvents({int limit = 10}) async {
+    try {
+      final response = await _supabase
+          .from('events')
+          .select('*')
+          .eq('status', 'upcoming')
+          .order('created_at', ascending: false)
+          .limit(limit);
+      
+      final events = <Event>[];
+      for (var e in response as List) {
+        final isLiked = await _isEventLiked(e['id']);
+        events.add(Event.fromJson({
+          ...e,
+          'is_liked': isLiked,
+        }));
+      }
+      
+      return events;
+    } catch (e) {
+      debugPrint('❌ Error getRecentEvents: $e');
       return [];
     }
   }
@@ -115,19 +187,17 @@ class EventService {
 
   Future<List<Event>> getFeaturedEvents() async {
     try {
-      final response = await _supabase.from('events').select('*');
-      
-      List<dynamic> results = response as List;
-      results = results.where((e) => 
-        e['is_featured'] == true && 
-        e['status'] == 'upcoming' &&
-        DateTime.parse(e['start_date']).isAfter(DateTime.now())
-      ).toList();
-      
-      results.sort((a, b) => DateTime.parse(a['start_date']).compareTo(DateTime.parse(b['start_date'])));
+      final response = await _supabase
+          .from('events')
+          .select('*')
+          .eq('is_featured', true)
+          .eq('status', 'upcoming')
+          .gte('start_date', DateTime.now().toIso8601String())
+          .order('start_date', ascending: true)
+          .limit(10);
       
       final events = <Event>[];
-      for (var e in results) {
+      for (var e in response as List) {
         final isLiked = await _isEventLiked(e['id']);
         events.add(Event.fromJson({
           ...e,
@@ -135,6 +205,7 @@ class EventService {
         }));
       }
       
+      debugPrint('⭐ getFeaturedEvents: ${events.length} événements à la une');
       return events;
     } catch (e) {
       debugPrint('❌ Error getFeaturedEvents: $e');
@@ -144,19 +215,17 @@ class EventService {
 
   Future<List<Event>> getEventsByCategory(String category) async {
     try {
-      final response = await _supabase.from('events').select('*');
-      
-      List<dynamic> results = response as List;
-      results = results.where((e) => 
-        e['category'] == category && 
-        e['status'] == 'upcoming' &&
-        DateTime.parse(e['start_date']).isAfter(DateTime.now())
-      ).toList();
-      
-      results.sort((a, b) => DateTime.parse(a['start_date']).compareTo(DateTime.parse(b['start_date'])));
+      final response = await _supabase
+          .from('events')
+          .select('*')
+          .eq('category', category)
+          .eq('status', 'upcoming')
+          .gte('start_date', DateTime.now().toIso8601String())
+          .order('start_date', ascending: true)
+          .limit(20);
       
       final events = <Event>[];
-      for (var e in results) {
+      for (var e in response as List) {
         final isLiked = await _isEventLiked(e['id']);
         events.add(Event.fromJson({
           ...e,
@@ -173,28 +242,17 @@ class EventService {
 
   Future<List<Event>> searchEvents(String query) async {
     try {
-      final response = await _supabase.from('events').select('*');
+      if (query.trim().isEmpty) return [];
       
-      List<dynamic> results = response as List;
-      final searchLower = query.toLowerCase();
+      final response = await _supabase
+          .from('events')
+          .select('*')
+          .eq('status', 'upcoming')
+          .or('title.ilike.%$query%,description.ilike.%$query%,location.ilike.%$query%')
+          .order('start_date', ascending: true)
+          .limit(50);
       
-      results = results.where((e) => 
-        e['status'] == 'upcoming' && (
-          e['title'].toString().toLowerCase().contains(searchLower) ||
-          e['description'].toString().toLowerCase().contains(searchLower) ||
-          e['location'].toString().toLowerCase().contains(searchLower) ||
-          (e['organizer_name'] ?? '').toString().toLowerCase().contains(searchLower)
-        )
-      ).toList();
-      
-      results.sort((a, b) => DateTime.parse(a['start_date']).compareTo(DateTime.parse(b['start_date'])));
-      
-      final events = <Event>[];
-      for (var e in results) {
-        events.add(Event.fromJson(e));
-      }
-      
-      return events;
+      return (response as List).map((e) => Event.fromJson(e)).toList();
     } catch (e) {
       debugPrint('❌ Error searchEvents: $e');
       return [];
@@ -253,6 +311,9 @@ class EventService {
         'user_id': currentUserId,
         'created_at': DateTime.now().toIso8601String(),
       });
+      
+      // Incrémenter le compteur de likes
+      await _supabase.rpc('increment_event_likes', params: {'event_id': eventId});
     }
   }
 
@@ -265,6 +326,9 @@ class EventService {
         .delete()
         .eq('event_id', eventId)
         .eq('user_id', currentUserId);
+    
+    // Décrémenter le compteur de likes
+    await _supabase.rpc('decrement_event_likes', params: {'event_id': eventId});
   }
 
   Future<bool> _isEventSaved(String eventId) async {
@@ -347,6 +411,7 @@ class EventService {
             .eq('id', eventId);
       }
       
+      debugPrint('🎫 bookTicket: Ticket créé pour $quantity places');
       return EventBooking.fromJson(response);
     } catch (e) {
       debugPrint('❌ Error bookTicket: $e');
@@ -368,13 +433,15 @@ class EventService {
       final bookings = <EventBooking>[];
       for (var e in response as List) {
         final event = e['events'];
-        bookings.add(EventBooking.fromJson({
-          ...e,
-          'event_title': event['title'],
-          'event_image_url': event['image_url'],
-          'event_date': event['start_date'],
-          'event_location': event['location'],
-        }));
+        if (event != null) {
+          bookings.add(EventBooking.fromJson({
+            ...e,
+            'event_title': event['title'],
+            'event_image_url': event['image_url'],
+            'event_date': event['start_date'],
+            'event_location': event['location'],
+          }));
+        }
       }
       return bookings;
     } catch (e) {
@@ -412,11 +479,16 @@ class EventService {
     final currentUserId = this.currentUserId;
     if (currentUserId.isEmpty) throw Exception('Admin non connecté');
 
+    debugPrint('📝 createEvent: Création de l\'événement "$title"');
+    
+    final now = DateTime.now().toIso8601String();
+    final startDateStr = startDate.toIso8601String();
+    
     final response = await _supabase.from('events').insert({
       'title': title,
       'description': description,
       'category': category,
-      'start_date': startDate.toIso8601String(),
+      'start_date': startDateStr,
       'location': location,
       'city': city,
       'address': address,
@@ -426,12 +498,15 @@ class EventService {
       'remaining_tickets': capacity,
       'image_url': imageUrl,
       'is_featured': isFeatured,
-      'status': 'upcoming',
+      'status': startDate.isAfter(DateTime.now()) ? 'upcoming' : 'ongoing',
       'organizer_id': currentUserId,
-      'created_at': DateTime.now().toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
+      'created_at': now,
+      'updated_at': now,
+      'views_count': 0,
+      'likes_count': 0,
     }).select().single();
 
+    debugPrint('✅ createEvent: Événement créé avec ID ${response['id']}');
     return Event.fromJson(response);
   }
 
@@ -486,35 +561,54 @@ class EventService {
   // STATISTIQUES
   // ============================================================
 
-  // lib/services/event_service.dart
-
-Future<Map<String, dynamic>> getAdminStats() async {
-  try {
-    final response = await _supabase.from('events').select('*');
-    final List<dynamic> events = response as List;
-    
-    final totalEvents = events.length;
-    final upcomingEvents = events.where((e) => 
-      e['status'] == 'upcoming' && DateTime.parse(e['start_date']).isAfter(DateTime.now())
-    ).length;
-    
-    // ✅ CORRECTION : Utiliser les types corrects
-    int totalViews = 0;
-    int totalLikes = 0;
-    for (var e in events) {
-      totalViews += e['views_count'] as int? ?? 0;
-      totalLikes += e['likes_count'] as int? ?? 0;
+  Future<Map<String, dynamic>> getAdminStats() async {
+    try {
+      final response = await _supabase.from('events').select('*');
+      final List<dynamic> events = response as List;
+      
+      final totalEvents = events.length;
+      final now = DateTime.now();
+      final upcomingEvents = events.where((e) => 
+        e['status'] == 'upcoming' && 
+        DateTime.parse(e['start_date']).isAfter(now)
+      ).length;
+      
+      int totalViews = 0;
+      int totalLikes = 0;
+      for (var e in events) {
+        totalViews += e['views_count'] as int? ?? 0;
+        totalLikes += e['likes_count'] as int? ?? 0;
+      }
+      
+      // ✅ CORRIGÉ: Retourner un Map non-nullable
+      return {
+        'total_events': totalEvents,
+        'upcoming_events': upcomingEvents,
+        'total_views': totalViews,
+        'total_likes': totalLikes,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getAdminStats: $e');
+      return {
+        'total_events': 0,
+        'upcoming_events': 0,
+        'total_views': 0,
+        'total_likes': 0,
+      };
     }
-    
-    return {
-      'total_events': totalEvents,
-      'upcoming_events': upcomingEvents,
-      'total_views': totalViews,
-      'total_likes': totalLikes,
-    };
-  } catch (e) {
-    debugPrint('❌ Error getAdminStats: $e');
-    return {};
   }
-}
+
+  // ============================================================
+  // VÉRIFICATION DE CONNEXION
+  // ============================================================
+
+  Future<bool> checkConnection() async {
+    try {
+      await _supabase.from('events').select('id').limit(1);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Connection check failed: $e');
+      return false;
+    }
+  }
 }

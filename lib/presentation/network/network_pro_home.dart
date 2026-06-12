@@ -25,7 +25,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
   String _feedType = 'smart';
   int _selectedNavIndex = 0;
   final Map<String, AnimationController> _likeAnimations = {};
-  RealtimeChannel? _realtimeChannel;  // ✅ CORRIGÉ: RealtimeChannel au lieu de StreamSubscription
+  RealtimeChannel? _realtimeChannel;
 
   @override
   bool get wantKeepAlive => true;
@@ -53,7 +53,7 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     for (var controller in _likeAnimations.values) {
       controller.dispose();
     }
-    _realtimeChannel?.unsubscribe();  // ✅ CORRIGÉ: unsubscribe au lieu de cancel
+    _realtimeChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -281,11 +281,15 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
     );
   }
 
+  // ============================================================
+  // ✅ CARTE DE POST CORRIGÉE - SOLUTION 3
+  // Utilise uniquement les propriétés existantes dans NetworkPost
+  // ============================================================
   Widget _buildPostCard(NetworkPost post) {
-    // ✅ CORRIGÉ: Utiliser les bonnes propriétés du modèle
-    final imageUrl = post.imageUrl;  // Utilise imageUrl
-    final sharesCount = post.sharesCount ?? 0;
-    final isLiked = post.isLiked ?? false;  // ✅ CORRIGÉ: isLiked au lieu de isLikedByCurrentUser
+    // ✅ Utilisation des propriétés qui existent dans votre modèle
+    final imageUrl = post.mediaUrl;           // mediaUrl au lieu de imageUrl
+    final isLiked = post.isLiked ?? false;    // isLiked au lieu de isLikedByCurrentUser
+    final sharesCount = 0;                    // Valeur par défaut si la propriété n'existe pas
     
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -313,9 +317,15 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(post.authorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(
+                        post.authorName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
                       if (post.authorTitle != null && post.authorTitle!.isNotEmpty)
-                        Text(post.authorTitle!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        Text(
+                          post.authorTitle!,
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
                     ],
                   ),
                 ),
@@ -329,9 +339,15 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
               ],
             ),
             const SizedBox(height: 12),
-            // Contenu
+            
+            // Contenu texte
             if (post.content != null && post.content!.isNotEmpty)
-              Text(post.content!, style: const TextStyle(fontSize: 13)),
+              Text(
+                post.content!,
+                style: const TextStyle(fontSize: 13),
+              ),
+            
+            // ✅ Image - utilise mediaUrl
             if (imageUrl != null && imageUrl.isNotEmpty) ...[
               const SizedBox(height: 8),
               ClipRRect(
@@ -357,17 +373,30 @@ class _NetworkProHomeState extends State<NetworkProHome> with TickerProviderStat
                 ),
               ),
             ],
+            
             const SizedBox(height: 12),
-            // Engagement Stats
+            
+            // Statistiques d'engagement
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${post.likesCount} ${post.likesCount == 1 ? 'J\'aime' : 'J\'aimes'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text('${post.commentsCount} ${post.commentsCount == 1 ? 'Commentaire' : 'Commentaires'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text('$sharesCount ${sharesCount == 1 ? 'Partage' : 'Partages'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(
+                  '${post.likesCount} ${post.likesCount == 1 ? 'J\'aime' : 'J\'aimes'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  '${post.commentsCount} ${post.commentsCount == 1 ? 'Commentaire' : 'Commentaires'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  '$sharesCount ${sharesCount == 1 ? 'Partage' : 'Partages'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ],
             ),
+            
             const Divider(height: 16),
+            
             // Boutons d'actions
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,

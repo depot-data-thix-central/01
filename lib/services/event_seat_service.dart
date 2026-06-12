@@ -61,6 +61,24 @@ class EventSeatService {
     }
   }
 
+  // ✅ AJOUTÉ: Libérer des places sans confirmation
+  Future<bool> releaseSeats(String eventId, List<String> seatIds) async {
+    try {
+      await _supabase
+          .from('event_seats')
+          .update({
+            'status': 'available',
+            'reserved_by': null,
+            'reserved_until': null,
+          })
+          .inFilter('id', seatIds);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error releaseSeats: $e');
+      return false;
+    }
+  }
+
   // Confirmer l'achat des places
   Future<bool> confirmSeats(String eventId, List<String> seatIds, int bookingId) async {
     try {
@@ -99,22 +117,62 @@ class EventSeatService {
   }
 
   // Obtenir le nombre de places disponibles
-  
-Future<int> getAvailableSeatsCount(String eventId) async {
-  try {
-    final response = await _supabase
-        .from('event_seats')
-        .select('id')
-        .eq('event_id', eventId)
-        .eq('status', 'available');
-    
-    // Compter manuellement en Dart
-    return (response as List).length;
-  } catch (e) {
-    debugPrint('❌ Error getAvailableSeatsCount: $e');
-    return 0;
+  Future<int> getAvailableSeatsCount(String eventId) async {
+    try {
+      final response = await _supabase
+          .from('event_seats')
+          .select('id', count: CountOption.exact)
+          .eq('event_id', eventId)
+          .eq('status', 'available');
+      
+      return response.count ?? 0;
+    } catch (e) {
+      debugPrint('❌ Error getAvailableSeatsCount: $e');
+      return 0;
+    }
   }
-}
+
+  // ✅ AJOUTÉ: Obtenir les places sélectionnées par leurs IDs
+  Future<List<EventSeat>> getSeatsByIds(List<String> seatIds) async {
+    try {
+      if (seatIds.isEmpty) return [];
+      
+      final response = await _supabase
+          .from('event_seats')
+          .select('*')
+          .inFilter('id', seatIds);
+      
+      final seats = <EventSeat>[];
+      for (var e in response as List) {
+        seats.add(EventSeat.fromJson(e));
+      }
+      return seats;
+    } catch (e) {
+      debugPrint('❌ Error getSeatsByIds: $e');
+      return [];
+    }
+  }
+
+  // ✅ AJOUTÉ: Vérifier si des places sont toujours disponibles
+  Future<bool> areSeatsAvailable(String eventId, List<String> seatIds) async {
+    try {
+      final response = await _supabase
+          .from('event_seats')
+          .select('id, status')
+          .eq('event_id', eventId)
+          .inFilter('id', seatIds);
+      
+      for (var seat in response as List) {
+        if (seat['status'] != 'available') {
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error areSeatsAvailable: $e');
+      return false;
+    }
+  }
 
   // Créer le plan de salle (admin)
   Future<void> createSeatMap(String eventId, int rows, int seatsPerRow, double basePrice) async {
@@ -141,11 +199,40 @@ Future<int> getAvailableSeatsCount(String eventId) async {
     }
   }
 
+  // ✅ AJOUTÉ: Mettre à jour les prix par catégorie
+  Future<void> updateSeatPrices(String eventId, Map<String, double> pricesByCategory) async {
+    try {
+      for (var entry in pricesByCategory.entries) {
+        await _supabase
+            .from('event_seats')
+            .update({'price': entry.value})
+            .eq('event_id', eventId)
+            .eq('category', entry.key);
+      }
+    } catch (e) {
+      debugPrint('❌ Error updateSeatPrices: $e');
+    }
+  }
+
+  // ✅ AJOUTÉ: Obtenir le prix total des places sélectionnées
+  Future<double> getTotalPriceForSeats(List<String> seatIds) async {
+    try {
+      final seats = await getSeatsByIds(seatIds);
+      return seats.fold(0, (sum, seat) => sum + (seat.price ?? 0));
+    } catch (e) {
+      debugPrint('❌ Error getTotalPriceForSeats: $e');
+      return 0;
+    }
+  }
+
+  // ✅ CORRIGÉ: _getCategory avec comparaison correcte des lettres
   String _getCategory(String row, int number) {
-    // ✅ Correction : comparer des String avec compareTo
-    if (row.compareTo('A') >= 0 && row.compareTo('C') <= 0) return 'vip';
-    if (row.compareTo('D') >= 0 && row.compareTo('F') <= 0) return 'gold';
-    if (row.compareTo('G') >= 0 && row.compareTo('J') <= 0) return 'family';
+    // Convertir le caractère en code ASCII pour comparer
+    final rowCode = row.codeUnitAt(0);
+    
+    if (rowCode >= 65 && rowCode <= 67) return 'vip';      // A, B, C
+    if (rowCode >= 68 && rowCode <= 70) return 'gold';     // D, E, F
+    if (rowCode >= 71 && rowCode <= 74) return 'family';   // G, H, I, J
     return 'standard';
   }
 }

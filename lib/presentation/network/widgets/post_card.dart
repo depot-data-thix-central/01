@@ -127,11 +127,71 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   }
 
   void _navigateToUser(String username) {
-    Navigator.pushNamed(context, '/profile/$username');
+    try {
+      Navigator.pushNamed(context, '/profile/$username').catchError((error) {
+        print('❌ Erreur navigation profil: $error');
+        _showNavigationError('profil de $username');
+      });
+    } catch (e) {
+      print('❌ Exception navigation: $e');
+      _showNavigationError('profil de $username');
+    }
   }
 
   void _navigateToHashtag(String hashtag) {
-    Navigator.pushNamed(context, '/hashtag/$hashtag');
+    try {
+      Navigator.pushNamed(context, '/hashtag/$hashtag').catchError((error) {
+        print('❌ Erreur navigation hashtag: $error');
+        _showNavigationError('hashtag #$hashtag');
+      });
+    } catch (e) {
+      print('❌ Exception navigation: $e');
+      _showNavigationError('hashtag #$hashtag');
+    }
+  }
+
+  // ✅ CORRECTION: Nouvelle fonction pour Thix Inf
+  void _navigateToThixInf() {
+    try {
+      print('📘 Navigation vers Thix Inf...');
+      Navigator.pushNamed(context, '/thix-inf').then((result) {
+        print('✅ Thix Inf fermé avec résultat: $result');
+      }).catchError((error) {
+        print('❌ Erreur navigation Thix Inf: $error');
+        _showNavigationError('Thix Inf');
+      });
+    } catch (e) {
+      print('❌ Exception Thix Inf: $e');
+      _showNavigationError('Thix Inf');
+    }
+  }
+
+  // ✅ CORRECTION: Nouvelle fonction pour Thix Événement
+  void _navigateToThixEvenement() {
+    try {
+      print('📅 Navigation vers Thix Événement...');
+      Navigator.pushNamed(context, '/thix-evenement').then((result) {
+        print('✅ Thix Événement fermé avec résultat: $result');
+      }).catchError((error) {
+        print('❌ Erreur navigation Thix Événement: $error');
+        _showNavigationError('Thix Événement');
+      });
+    } catch (e) {
+      print('❌ Exception Thix Événement: $e');
+      _showNavigationError('Thix Événement');
+    }
+  }
+
+  void _showNavigationError(String page) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠️ Impossible d\'accéder à $page'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleSave() async {
@@ -466,6 +526,12 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                           case 'repost':
                             _repost();
                             break;
+                          case 'thix-inf':
+                            _navigateToThixInf();
+                            break;
+                          case 'thix-evenement':
+                            _navigateToThixEvenement();
+                            break;
                         }
                       },
                       itemBuilder: (context) => [
@@ -518,6 +584,27 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                               Icon(Icons.repeat, size: 18),
                               SizedBox(width: 8),
                               Text('Reposter'),
+                            ],
+                          ),
+                        ),
+                        // ✅ CORRECTION: Ajout des boutons Thix Inf et Thix Événement
+                        const PopupMenuItem<String>(
+                          value: 'thix-inf',
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 18, color: Colors.blue),
+                              SizedBox(width: 8),
+                              Text('📘 Thix Inf'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'thix-evenement',
+                          child: Row(
+                            children: [
+                              Icon(Icons.event, size: 18, color: Colors.purple),
+                              SizedBox(width: 8),
+                              Text('📅 Thix Événement'),
                             ],
                           ),
                         ),

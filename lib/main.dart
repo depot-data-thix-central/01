@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Pour Riverpod (nouveau chat)
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; // Ajout pour BlocProvider
 import 'package:thix_id/auth/auth_controller.dart';
 import 'package:thix_id/auth/supabase_auth_manager.dart';
 import 'package:thix_id/l10n/app_localizations.dart';
@@ -21,14 +22,11 @@ import 'package:thix_id/providers/news_provider.dart';
 import 'package:thix_id/services/notification_service.dart';
 import 'package:thix_id/services/notification_counters_service.dart';
 
-// ============================================================
-// NOUVEAUX IMPORTS POUR THIX CHAT (BLOC + REPOSITORY + TOKEN)
-// ============================================================
+// Nouveaux imports THIX CHAT
 import 'package:thix_id/presentation/chat/core/chat_bloc.dart';
 import 'package:thix_id/presentation/chat/core/chat_repository.dart';
 import 'package:thix_id/core/auth/token_service.dart';
 
-/// Main entry point for the application
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -69,10 +67,10 @@ Future<void> main() async {
     debugPrint(st.toString());
   }
 
-  // Initialisation du token JWT pour les Edge Functions (après auth)
+  // Initialisation du token JWT pour les Edge Functions
   await TokenService.getToken();
 
-  runApp(ProviderScope(child: MyApp(auth: auth))); // ProviderScope pour Riverpod
+  runApp(ProviderScope(child: MyApp(auth: auth)));
 }
 
 class MyApp extends StatefulWidget {
@@ -87,15 +85,14 @@ class _MyAppState extends State<MyApp> {
   late final LocaleController _localeController;
   late final _router;
 
-  // Services existants (non-chat)
+  // Services existants
   late final NetworkService _networkService;
   late final EventService _eventService;
   late final NewsService _newsService;
 
-  // ============================================================
-  // NOUVEAUX SERVICES POUR THIX CHAT
-  // ============================================================
+  // Nouveaux services chat
   late final ChatRepository _chatRepository;
+  late final ChatBloc _chatBloc;
 
   @override
   void initState() {
@@ -108,8 +105,8 @@ class _MyAppState extends State<MyApp> {
     _eventService = EventService(supabaseClient);
     _newsService = NewsService(supabaseClient);
 
-    // Initialisation du repository (utilise SupabaseClient pour Realtime)
     _chatRepository = ChatRepository();
+    _chatBloc = ChatBloc(_chatRepository); // Création du Bloc
 
     _router = AppRouter.create(widget.auth, extraRefreshListenable: _localeController);
   }
@@ -118,7 +115,6 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Providers existants (hors chat)
         ChangeNotifierProvider.value(value: widget.auth),
         ChangeNotifierProvider.value(value: _localeController),
         ChangeNotifierProvider(create: (_) => CartService()),
@@ -147,33 +143,33 @@ class _MyAppState extends State<MyApp> {
         Provider<NotificationService>.value(value: NotificationService()),
         Provider<NotificationCountersService>.value(value: NotificationCountersService()),
 
-        // ============================================================
-        // NOUVEAUX PROVIDERS POUR THIX CHAT (Riverpod déjà inclus via ProviderScope)
-        // On injecte le repository pour qu'il soit accessible via les providers
-        // ============================================================
+        // Injection du repository (utile si certaines parties en ont besoin)
         Provider<ChatRepository>(create: (_) => _chatRepository),
       ],
-      child: Builder(
-        builder: (context) {
-          final locale = context.watch<LocaleController>().locale;
-          return MaterialApp.router(
-            title: 'THIX ID',
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            darkTheme: darkTheme,
-            themeMode: ThemeMode.system,
-            routerConfig: _router,
-            locale: locale,
-            supportedLocales: LocaleController.supportedLocales,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            builder: (context, child) => child ?? const SizedBox.shrink(),
-          );
-        },
+      child: BlocProvider<ChatBloc>.value(
+        value: _chatBloc, // Fournit le Bloc à toute l'application
+        child: Builder(
+          builder: (context) {
+            final locale = context.watch<LocaleController>().locale;
+            return MaterialApp.router(
+              title: 'THIX ID',
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              darkTheme: darkTheme,
+              themeMode: ThemeMode.system,
+              routerConfig: _router,
+              locale: locale,
+              supportedLocales: LocaleController.supportedLocales,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              builder: (context, child) => child ?? const SizedBox.shrink(),
+            );
+          },
+        ),
       ),
     );
   }

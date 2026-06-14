@@ -346,3 +346,245 @@ class _ManageShopWidgetState extends State<ManageShopWidget>
           ),
           const SizedBox(height: 16),
           TextFormField(
+            controller: _addressController,
+            decoration: InputDecoration(
+              labelText: 'Adresse',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              prefixIcon: const Icon(Icons.location_on),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _phoneController,
+            decoration: InputDecoration(
+              labelText: 'Téléphone',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              prefixIcon: const Icon(Icons.phone),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _emailController,
+            decoration: InputDecoration(
+              labelText: 'Email',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              prefixIcon: const Icon(Icons.email),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          const Text(
+            'Logo',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => _pickImage(true),
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: _newLogo != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.file(_newLogo!, fit: BoxFit.cover),
+                    )
+                  : (_shop['logo_url'] != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: _shop['logo_url'],
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey[400]),
+                            const SizedBox(height: 4),
+                            Text('Modifier', style: TextStyle(color: Colors.grey[500])),
+                          ],
+                        )),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Bannière',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => _pickImage(false),
+            child: Container(
+              height: 150,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: _newCover != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.file(_newCover!, fit: BoxFit.cover),
+                    )
+                  : (_shop['cover_url'] != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: _shop['cover_url'],
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey[400]),
+                            const SizedBox(height: 4),
+                            Text('Ajouter une bannière', style: TextStyle(color: Colors.grey[500])),
+                          ],
+                        )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Status
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Statut de la boutique'),
+            subtitle: Text(_getStatusText(_shop['status'])),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getStatusColor(_shop['status']).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _getStatusText(_shop['status']),
+                style: TextStyle(color: _getStatusColor(_shop['status'])),
+              ),
+            ),
+          ),
+          const Divider(),
+          
+          // Verification
+          SwitchListTile(
+            title: const Text('Boutique vérifiée'),
+            subtitle: const Text('Augmente la confiance des acheteurs'),
+            value: _shop['is_verified'] ?? false,
+            onChanged: (value) {
+              // Seulement pour les admins
+            },
+            activeColor: const Color(0xFFE5592F),
+          ),
+          const Divider(),
+          
+          // Delete shop
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: const Text('Supprimer la boutique', style: TextStyle(color: Colors.red)),
+            subtitle: const Text('Cette action est irréversible'),
+            onTap: _confirmDelete,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(bool isLogo) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      
+      if (image != null) {
+        setState(() {
+          if (isLogo) {
+            _newLogo = File(image.path);
+          } else {
+            _newCover = File(image.path);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+    }
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer la boutique'),
+        content: const Text(
+          'Êtes-vous sûr de vouloir supprimer cette boutique ?\n\n'
+          'Cette action supprimera tous les produits et est irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await Supabase.instance.client
+                  .from('shops')
+                  .delete()
+                  .eq('id', widget.shopId);
+              if (mounted) Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'active': return Colors.green;
+      case 'pending': return Colors.orange;
+      case 'suspended': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  String _getStatusText(String? status) {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'pending': return 'En attente';
+      case 'suspended': return 'Suspendue';
+      default: return 'Inconnu';
+    }
+  }
+}

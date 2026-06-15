@@ -79,6 +79,39 @@ dependencies:
   # Internationalization
   intl: ^0.18.1
 
+  # ==================== THIX MARKET ====================
+  # Carrousel et animations
+  carousel_slider: ^4.2.1
+  shimmer: ^3.0.0
+  
+  # Évaluations
+  flutter_rating_bar: ^4.0.1
+  
+  # Paiements
+  stripe_sdk: ^3.2.0
+  
+  # Utilitaires
+  uuid: ^4.5.1
+  debounce_throttle: ^2.0.0
+  
+  # Calendrier pour les services
+  table_calendar: ^3.1.2
+  
+  # Cartes Google
+  google_maps_flutter: ^2.13.0
+  
+  # Firebase Cloud Messaging (notifications push)
+  firebase_messaging: ^15.2.0
+  
+  # Compression d'images
+  flutter_image_compress: ^2.4.0
+  
+  # Export CSV
+  csv: ^6.0.0
+  
+  # Pour les imports Excel/CSV (optionnel)
+  excel: ^4.0.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

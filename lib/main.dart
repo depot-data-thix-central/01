@@ -22,7 +22,7 @@ import 'package:thix_id/providers/news_provider.dart';
 import 'package:thix_id/services/notification_service.dart';
 import 'package:thix_id/services/notification_counters_service.dart';
 
-// Nouveaux imports THIX CHAT
+// ==================== THIX CHAT ====================
 import 'package:thix_id/presentation/chat/core/chat_bloc.dart';
 import 'package:thix_id/presentation/chat/core/chat_repository.dart';
 import 'package:thix_id/core/auth/token_service.dart';
@@ -38,9 +38,19 @@ import 'package:thix_id/presentation/thix_market/cart/cart_provider.dart';
 import 'package:thix_id/presentation/thix_market/checkout/checkout_provider.dart';
 import 'package:thix_id/presentation/thix_market/delivery/delivery_provider.dart';
 import 'package:thix_id/presentation/thix_market/admin/admin_provider.dart';
-// Optionnel : si vous souhaitez pré-initialiser des services, les importer ici
-// import 'package:thix_id/presentation/thix_market/services/geolocation_service.dart';
-// import 'package:thix_id/presentation/thix_market/services/notification_service.dart' as market_notif;
+
+// ==================== THIX MONEY ====================
+// Providers
+import 'package:thix_id/presentation/thix_money/providers/thix_money_provider.dart';
+import 'package:thix_id/presentation/thix_money/providers/transaction_provider.dart';
+import 'package:thix_id/presentation/thix_money/providers/card_provider.dart';
+import 'package:thix_id/presentation/thix_money/providers/merchant_provider.dart';
+
+// Services (si vous voulez les injecter via Provider, optionnel)
+import 'package:thix_id/services/thix_money/balance_service.dart';
+import 'package:thix_id/services/thix_money/transaction_service.dart';
+import 'package:thix_id/services/thix_money/card_service.dart';
+import 'package:thix_id/services/thix_money/merchant_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,12 +115,15 @@ class _MyAppState extends State<MyApp> {
   late final EventService _eventService;
   late final NewsService _newsService;
 
-  // Nouveaux services chat
+  // Services chat
   late final ChatRepository _chatRepository;
   late final ChatBloc _chatBloc;
 
-  // Services THIX MARKET (optionnels, peuvent être lazy)
-  // On peut les déclarer ici si besoin d'initialisation explicite, sinon les providers les créeront.
+  // ==================== Services THIX MONEY ====================
+  late final BalanceService _balanceService;
+  late final TransactionService _transactionService;
+  late final CardService _cardService;
+  late final MerchantService _merchantService;
 
   @override
   void initState() {
@@ -125,6 +138,12 @@ class _MyAppState extends State<MyApp> {
 
     _chatRepository = ChatRepository();
     _chatBloc = ChatBloc(_chatRepository);
+
+    // Initialisation des services Thix Money
+    _balanceService = BalanceService();
+    _transactionService = TransactionService();
+    _cardService = CardService();
+    _merchantService = MerchantService();
 
     _router = AppRouter.create(widget.auth, extraRefreshListenable: _localeController);
   }
@@ -165,8 +184,6 @@ class _MyAppState extends State<MyApp> {
         Provider<ChatRepository>(create: (_) => _chatRepository),
 
         // ==================== THIX MARKET PROVIDERS ====================
-        // Ces providers sont utilisés par les pages du market.
-        // Ils s'initialiseront automatiquement via leurs constructeurs.
         ChangeNotifierProvider(create: (_) => MarketProvider()),
         ChangeNotifierProvider(create: (_) => ShopProvider()),
         ChangeNotifierProvider(create: (_) => ProductProvider()),
@@ -177,8 +194,36 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),
         ChangeNotifierProvider(create: (_) => DeliveryProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
-        // Si vous avez d'autres providers (ex: ActivityProvider, etc.) ajoutez-les ici.
-        // Exemple : ChangeNotifierProvider(create: (_) => ActivityProvider()),
+
+        // ==================== THIX MONEY PROVIDERS ====================
+        // Injection des services (optionnel mais recommandé pour les tests)
+        Provider<BalanceService>.value(value: _balanceService),
+        Provider<TransactionService>.value(value: _transactionService),
+        Provider<CardService>.value(value: _cardService),
+        Provider<MerchantService>.value(value: _merchantService),
+
+        // Providers d'état
+        ChangeNotifierProvider(
+          create: (context) => ThixMoneyProvider(
+            balanceService: context.read<BalanceService>(),
+            transactionService: context.read<TransactionService>(),
+          )..loadData(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => TransactionProvider(
+            transactionService: context.read<TransactionService>(),
+          )..loadAllTransactions(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => CardProvider(
+            cardService: context.read<CardService>(),
+          )..loadCard(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => MerchantProvider(
+            merchantService: context.read<MerchantService>(),
+          )..loadMerchantStatus(),
+        ),
       ],
       child: BlocProvider<ChatBloc>.value(
         value: _chatBloc,

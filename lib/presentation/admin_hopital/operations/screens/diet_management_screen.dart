@@ -1,67 +1,65 @@
-// 📁 lib/presentation/admin_hopital/operations/screens/linen_management_screen.dart
+// 📁 lib/presentation/admin_hopital/operations/screens/diet_management_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../widgets/linen_inventory_item.dart';
+import '../widgets/meal_planning_form.dart';
 import '../../common/widgets/admin_search_bar.dart';
 import '../../common/widgets/admin_loading_overlay.dart';
 import '../../common/widgets/admin_empty_state.dart';
 import '../../common/widgets/admin_gradient_button.dart';
+import '../../common/widgets/admin_status_badge.dart';
 
-class LinenManagementScreen extends ConsumerStatefulWidget {
-  const LinenManagementScreen({Key? key}) : super(key: key);
+class DietManagementScreen extends ConsumerStatefulWidget {
+  const DietManagementScreen({Key? key}) : super(key: key);
 
   @override
-  ConsumerState<LinenManagementScreen> createState() => _LinenManagementScreenState();
+  ConsumerState<DietManagementScreen> createState() => _DietManagementScreenState();
 }
 
-class _LinenManagementScreenState extends ConsumerState<LinenManagementScreen> {
+class _DietManagementScreenState extends ConsumerState<DietManagementScreen> {
   String _searchQuery = '';
-  String _filterCategory = 'all';
+  String _filterStatus = 'all';
   bool _isLoading = false;
 
   // Données mockées
-  final List<Map<String, dynamic>> _linen = [
-    {'name': 'Draps blancs', 'category': 'Draps', 'quantity': 150, 'threshold': 100, 'condition': 'good'},
-    {'name': 'Taies d\'oreiller', 'category': 'Taies', 'quantity': 80, 'threshold': 60, 'condition': 'good'},
-    {'name': 'Serviettes de bain', 'category': 'Serviettes', 'quantity': 45, 'threshold': 50, 'condition': 'fair'},
-    {'name': 'Blouses patients', 'category': 'Vêtements', 'quantity': 20, 'threshold': 40, 'condition': 'poor'},
-    {'name': 'Gigognes', 'category': 'Équipement', 'quantity': 35, 'threshold': 30, 'condition': 'fair'},
+  final List<Map<String, dynamic>> _meals = [
+    {'id': '1', 'patient': 'Michel Dupont', 'meal': 'Poulet grillé, riz, légumes', 'mealType': 'Déjeuner', 'dietType': 'Sans sel', 'mealDate': DateTime.now(), 'serveTime': DateTime.now().add(const Duration(hours: 2)), 'status': 'planned', 'ingredients': 'Poulet, riz, légumes verts'},
+    {'id': '2', 'patient': 'Sophie Martin', 'meal': 'Purée de légumes, poisson', 'mealType': 'Dîner', 'dietType': 'Mixé', 'mealDate': DateTime.now().add(const Duration(days: 1)), 'serveTime': DateTime.now().add(const Duration(hours: 6)), 'status': 'planned', 'ingredients': 'Légumes, poisson, pommes de terre'},
+    {'id': '3', 'patient': 'Lucas Bernard', 'meal': 'Pain, beurre, confiture', 'mealType': 'Petit-déjeuner', 'dietType': 'Standard', 'mealDate': DateTime.now().add(const Duration(days: -1)), 'serveTime': DateTime.now().add(const Duration(hours: -2)), 'status': 'served', 'ingredients': 'Pain, beurre, confiture'},
   ];
 
-  List<Map<String, dynamic>> get _filteredLinen {
-    var filtered = _linen;
+  List<Map<String, dynamic>> get _filteredMeals {
+    var filtered = _meals;
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-      filtered = filtered.where((l) =>
-        l['name'].toLowerCase().contains(query) ||
-        l['category'].toLowerCase().contains(query)
+      filtered = filtered.where((m) =>
+        m['patient'].toLowerCase().contains(query) ||
+        m['meal'].toLowerCase().contains(query) ||
+        m['mealType'].toLowerCase().contains(query)
       ).toList();
     }
-    if (_filterCategory != 'all') {
-      filtered = filtered.where((l) => l['category'] == _filterCategory).toList();
+    if (_filterStatus != 'all') {
+      filtered = filtered.where((m) => m['status'] == _filterStatus).toList();
     }
     return filtered;
   }
 
-  List<String> get _categories => ['all', ..._linen.map((l) => l['category'] as String).toSet()];
-
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredLinen;
+    final filtered = _filteredMeals;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gestion du linge'),
+        title: const Text('Gestion des repas'),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black87,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddLinenDialog(),
-            tooltip: 'Ajouter du linge',
+            onPressed: () => _showAddMealDialog(),
+            tooltip: 'Planifier un repas',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -82,21 +80,22 @@ class _LinenManagementScreenState extends ConsumerState<LinenManagementScreen> {
                   Expanded(
                     child: AdminSearchBar(
                       onSearch: (query) => setState(() => _searchQuery = query),
-                      hintText: 'Rechercher du linge...',
+                      hintText: 'Rechercher un repas (patient, type)...',
                     ),
                   ),
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: DropdownButton<String>(
-                      value: _filterCategory,
-                      items: _categories.map((c) {
-                        return DropdownMenuItem(
-                          value: c,
-                          child: Text(c == 'all' ? 'Toutes catégories' : c, style: const TextStyle(fontSize: 13)),
-                        );
-                      }).toList(),
-                      onChanged: (v) => setState(() => _filterCategory = v ?? 'all'),
+                      value: _filterStatus,
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('Tous', style: TextStyle(fontSize: 13))),
+                        DropdownMenuItem(value: 'planned', child: Text('Planifiés', style: TextStyle(fontSize: 13))),
+                        DropdownMenuItem(value: 'preparing', child: Text('En préparation', style: TextStyle(fontSize: 13))),
+                        DropdownMenuItem(value: 'served', child: Text('Servis', style: TextStyle(fontSize: 13))),
+                        DropdownMenuItem(value: 'cancelled', child: Text('Annulés', style: TextStyle(fontSize: 13))),
+                      ],
+                      onChanged: (v) => setState(() => _filterStatus = v ?? 'all'),
                       underline: const SizedBox.shrink(),
                     ),
                   ),
@@ -106,10 +105,10 @@ class _LinenManagementScreenState extends ConsumerState<LinenManagementScreen> {
             Expanded(
               child: filtered.isEmpty
                   ? const AdminEmptyState(
-                      title: 'Aucun article',
-                      subtitle: 'Ajoutez du linge à l\'inventaire',
-                      icon: Icons.checkroom_outlined,
-                      actionText: 'Ajouter du linge',
+                      title: 'Aucun repas planifié',
+                      subtitle: 'Planifiez les repas des patients',
+                      icon: Icons.restaurant_outlined,
+                      actionText: 'Planifier un repas',
                       onAction: null,
                     )
                   : ListView.separated(
@@ -117,23 +116,53 @@ class _LinenManagementScreenState extends ConsumerState<LinenManagementScreen> {
                       itemCount: filtered.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        final l = filtered[index];
-                        return LinenInventoryItem(
-                          name: l['name'],
-                          category: l['category'],
-                          quantity: l['quantity'],
-                          threshold: l['threshold'],
-                          condition: l['condition'],
-                          onReorder: l['quantity'] <= l['threshold'] ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Commande de réapprovisionnement envoyée'), backgroundColor: Colors.orange),
-                            );
-                          } : null,
-                          onInspect: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Inspection du linge'), backgroundColor: Colors.blue),
-                            );
-                          },
+                        final m = filtered[index];
+                        final statusColor = m['status'] == 'served' ? Colors.green : (m['status'] == 'planned' ? Colors.blue : Colors.orange);
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade100),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.restaurant, size: 22, color: Colors.orange),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      m['patient'],
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${m['mealType']} • ${m['meal']}',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Régime: ${m['dietType']} • ${m['serveTime'] != null ? '${(m['serveTime'] as DateTime).hour}h${(m['serveTime'] as DateTime).minute.toString().padLeft(2, '0')}' : ''}',
+                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              AdminStatusBadge(
+                                status: m['status'] == 'served' ? StatusType.completed : (m['status'] == 'planned' ? StatusType.pending : StatusType.warning),
+                                customLabel: m['status'] == 'served' ? 'Servi' : (m['status'] == 'planned' ? 'Planifié' : 'En préparation'),
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
@@ -144,40 +173,24 @@ class _LinenManagementScreenState extends ConsumerState<LinenManagementScreen> {
     );
   }
 
-  void _showAddLinenDialog() {
-    final nameCtrl = TextEditingController();
-    final categoryCtrl = TextEditingController();
-    final quantityCtrl = TextEditingController();
-    final thresholdCtrl = TextEditingController();
+  void _showAddMealDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Ajouter du linge'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nom *'), style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 8),
-            TextField(controller: categoryCtrl, decoration: const InputDecoration(labelText: 'Catégorie *'), style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 8),
-            TextField(controller: quantityCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantité *'), style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 8),
-            TextField(controller: thresholdCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Seuil *'), style: const TextStyle(fontSize: 13)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-          ElevatedButton(
-            onPressed: () {
+        contentPadding: const EdgeInsets.all(0),
+        content: SizedBox(
+          width: 500,
+          child: MealPlanningForm(
+            onSave: (data) {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Article ajouté'), backgroundColor: Colors.green),
+                const SnackBar(content: Text('Repas planifié'), backgroundColor: Colors.green),
               );
             },
-            child: const Text('Ajouter'),
+            onCancel: () => Navigator.pop(context),
           ),
-        ],
+        ),
       ),
     );
   }

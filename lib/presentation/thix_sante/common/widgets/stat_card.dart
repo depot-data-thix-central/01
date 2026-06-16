@@ -65,4 +65,23 @@ class StatCard extends StatelessWidget {
               children: [
                 Icon(
                   trend! >= 0 ? Icons.trending_up : Icons.trending_down,
-                  size: 12
+                  size: 12,
+                  color: trend! >= 0 ? Colors.green : Colors.red,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  '${trend!.abs()}%',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: trend! >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

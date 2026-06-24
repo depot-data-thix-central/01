@@ -7,10 +7,6 @@ import '../../models/thix_sante/hospital/patient_model.dart';
 class PatientRepository extends BaseRepository {
   // ==================== RÉCUPÉRATION ====================
 
-  Future<List<PatientModel>> getPatients() async {
-    return getAllPatients();
-  }
-
   /// Récupère tous les patients (Admin Hôpital)
   Future<List<PatientModel>> getAllPatients() async {
     return execute(() async {

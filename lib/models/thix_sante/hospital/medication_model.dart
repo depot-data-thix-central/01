@@ -55,40 +55,6 @@ class MedicationModel {
     );
   }
 
-  MedicationModel copyWith({
-    String? id,
-    String? name,
-    String? dosage,
-    String? form,
-    String? status,
-    int? quantity,
-    int? threshold,
-    double? price,
-    String? frequency,
-    String? batchNumber,
-    DateTime? expiryDate,
-    DateTime? startDate,
-    DateTime? endDate,
-    Map<String, dynamic>? raw,
-  }) {
-    return MedicationModel(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      dosage: dosage ?? this.dosage,
-      form: form ?? this.form,
-      status: status ?? this.status,
-      quantity: quantity ?? this.quantity,
-      threshold: threshold ?? this.threshold,
-      price: price ?? this.price,
-      frequency: frequency ?? this.frequency,
-      batchNumber: batchNumber ?? this.batchNumber,
-      expiryDate: expiryDate ?? this.expiryDate,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      raw: raw ?? this.raw,
-    );
-  }
-
   Map<String, dynamic> toJson() => Map<String, dynamic>.from(raw)
     ..addAll({
       'id': id,

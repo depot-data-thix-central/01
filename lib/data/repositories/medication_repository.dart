@@ -7,10 +7,6 @@ import '../../models/thix_sante/hospital/medication_model.dart';
 class MedicationRepository extends BaseRepository {
   // ==================== RÉCUPÉRATION ====================
 
-  Future<List<MedicationModel>> getMedications() async {
-    return getAllMedications();
-  }
-
   /// Récupère tous les médicaments
   Future<List<MedicationModel>> getAllMedications() async {
     return execute(() async {

@@ -35,30 +35,6 @@ class BedModel {
     );
   }
 
-  BedModel copyWith({
-    String? id,
-    String? number,
-    String? roomNumber,
-    String? ward,
-    String? service,
-    String? status,
-    String? patientId,
-    String? patientName,
-    Map<String, dynamic>? raw,
-  }) {
-    return BedModel(
-      id: id ?? this.id,
-      number: number ?? this.number,
-      roomNumber: roomNumber ?? this.roomNumber,
-      ward: ward ?? this.ward,
-      service: service ?? this.service,
-      status: status ?? this.status,
-      patientId: patientId ?? this.patientId,
-      patientName: patientName ?? this.patientName,
-      raw: raw ?? this.raw,
-    );
-  }
-
   Map<String, dynamic> toJson() => Map<String, dynamic>.from(raw)
     ..addAll({
       'id': id,

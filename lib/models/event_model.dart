@@ -105,56 +105,6 @@ class Event {
 
   String get formattedPrice => isFree ? 'Gratuit' : '${price.toStringAsFixed(0)} FCFA';
 
-  Event copyWith({
-    String? id,
-    String? title,
-    String? description,
-    String? imageUrl,
-    String? address,
-    String? organizerName,
-    String? contactPhone,
-    String? location,
-    String? city,
-    String? category,
-    String? status,
-    double? price,
-    int? capacity,
-    int? likesCount,
-    int? remainingTickets,
-    bool? isFeatured,
-    DateTime? startDate,
-    DateTime? endDate,
-    bool? isLiked,
-    bool? isSaved,
-    int? viewsCount,
-    Map<String, dynamic>? raw,
-  }) {
-    return Event(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
-      address: address ?? this.address,
-      organizerName: organizerName ?? this.organizerName,
-      contactPhone: contactPhone ?? this.contactPhone,
-      location: location ?? this.location,
-      city: city ?? this.city,
-      category: category ?? this.category,
-      status: status ?? this.status,
-      price: price ?? this.price,
-      capacity: capacity ?? this.capacity,
-      likesCount: likesCount ?? this.likesCount,
-      remainingTickets: remainingTickets ?? this.remainingTickets,
-      isFeatured: isFeatured ?? this.isFeatured,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      isLiked: isLiked ?? this.isLiked,
-      isSaved: isSaved ?? this.isSaved,
-      viewsCount: viewsCount ?? this.viewsCount,
-      raw: raw ?? this.raw,
-    );
-  }
-
   Map<String, dynamic> toJson() => Map<String, dynamic>.from(raw)
     ..addAll({
       'id': id,

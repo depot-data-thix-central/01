@@ -35,8 +35,7 @@ class _MerchantSplitRequestsScreenState extends State<MerchantSplitRequestsScree
       await _splitService.markSplitAsCompleted(splitCode);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paiement complété confirmé')));
       _loadPendingSplits();
-    } catch (e) {
-      debugPrint('MerchantSplitRequestsScreen: markSplitAsCompleted failed: $e');
+    } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Échec de confirmation du paiement')));
     }
   }

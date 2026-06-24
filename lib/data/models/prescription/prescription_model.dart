@@ -8,5 +8,12 @@ class PrescriptionModel {
     return PrescriptionModel(id: (json['id'] ?? '').toString(), raw: Map<String, dynamic>.from(json));
   }
 
+  PrescriptionModel copyWith({String? id, Map<String, dynamic>? raw}) {
+    return PrescriptionModel(
+      id: id ?? this.id,
+      raw: raw ?? this.raw,
+    );
+  }
+
   Map<String, dynamic> toJson() => Map<String, dynamic>.from(raw)..addAll({'id': id});
 }

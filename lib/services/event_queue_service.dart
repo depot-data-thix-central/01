@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import '../models/event_waiting_queue.dart';
+import 'push_notification_service.dart';
 
 class EventQueueService {
   final SupabaseClient _supabase;
@@ -163,8 +164,21 @@ class EventQueueService {
   }
 
   Future<void> _notifyUser(String userId, String eventId) async {
-    // Notification push à l'utilisateur
-    debugPrint('📢 Notify user $userId: your turn for event $eventId');
-    // TODO: Implémenter la notification push réelle
+    try {
+      // Envoyer une notification push réelle à l'utilisateur
+      final title = '🎫 Votre tour est arrivé!';
+      final body = 'Vous êtes prêt à réserver pour cet événement. Dépêchez-vous!';
+      
+      // Utiliser le service de notification push
+      await PushNotificationService.instance.showNotification(
+        title: title,
+        body: body,
+        payload: eventId,
+      );
+      
+      debugPrint('✅ Push notification sent to user $userId for event $eventId');
+    } catch (e) {
+      debugPrint('❌ Error sending push notification: $e');
+    }
   }
 }

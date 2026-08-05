@@ -2,6 +2,9 @@
 // [PARTIE] Fonctions utilitaires
 
 import 'package:intl/intl.dart';
+// TODO: Ajustez ces chemins d'import selon l'arborescence exacte de votre projet
+import '../../models/message.dart'; 
+import '../constants/chat_constants.dart';
 
 class ChatUtils {
   // Formater l'heure d'affichage d'un message

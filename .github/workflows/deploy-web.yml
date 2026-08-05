@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -32,7 +32,7 @@ jobs:
       run: flutter pub get
     
     - name: Build web
-      run: flutter build web --release -t lib/main_web.dart --base-href /00/
+      run: flutter build web --release --base-href /sona1/ --pwa-strategy none
     
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
